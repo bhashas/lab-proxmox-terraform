@@ -1,0 +1,40 @@
+name: "PROXMOX-GITOPS"
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # --- SCAN 1 : CHECKOV (Recherche d'erreurs de config) ---
+      - name: Checkov Scan
+        uses: bridgecrewio/checkov-action@master
+        with:
+          directory: .
+          framework: terraform
+          soft_fail: true # Affiche les alertes sans bloquer pour ton test
+
+      # --- SCAN 2 : TRIVY (Vérifie les vulnérabilités) ---
+      - name: Trivy IaC Scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'config'
+          exit-code: '0'
+          severity: 'CRITICAL,HIGH'
+
+      # --- DEPLOIEMENT ---
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          cli_config_token: ${{ secrets.TF_API_TOKEN }}
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Apply
+        run: terraform apply -auto-approve
